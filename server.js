@@ -31,7 +31,7 @@ wss.on("connection", (ws) => {
     if (msg.type === "login") {
       if (msg.code === ACCESS_CODE) {
         ws.authorized = true;
-        ws.nick = msg.nick || "Anon";
+        ws.nick = String(msg.nick || "Anon").slice(0, 20);
         ws.send(JSON.stringify({ type: "login_success" }));
       } else {
         ws.send(JSON.stringify({ type: "login_error" }));
@@ -45,7 +45,7 @@ wss.on("connection", (ws) => {
       const outgoing = JSON.stringify({
         type: "message",
         nick: ws.nick,
-        text: msg.text,
+        text: String(msg.text || "").slice(0, 500),
         time: new Date().toLocaleString("pl-PL")
       });
 
@@ -66,6 +66,8 @@ wss.on("connection", (ws) => {
   });
 });
 
-server.listen(3000, () => {
-  console.log("Chat działa na http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+
+server.listen(PORT, () => {
+  console.log("Chat działa na porcie " + PORT);
 });
