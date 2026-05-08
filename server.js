@@ -7,7 +7,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-const ACCESS_CODE = "1234";
+const ACCESS_CODE = "0509";
 
 app.use(express.static(path.join(__dirname, "public")));
 
