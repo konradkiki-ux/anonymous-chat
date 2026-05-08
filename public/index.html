@@ -1,1 +1,325 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Anonymous Chat</title>
 
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #020617, #111827);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 15px;
+    }
+
+    .box {
+      width: 100%;
+      max-width: 520px;
+      background: rgba(15, 23, 42, 0.95);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      border: 1px solid rgba(0,255,120,0.25);
+    }
+
+    .logo {
+      width: 100%;
+      max-height: 190px;
+      object-fit: cover;
+      border-radius: 15px;
+      margin-bottom: 15px;
+      border: 2px solid #00ff88;
+      box-shadow: 0 0 25px rgba(0,255,136,0.45);
+    }
+
+    h1 {
+      text-align: center;
+      margin-top: 0;
+      color: #00ff88;
+      text-shadow: 0 0 10px rgba(0,255,136,0.6);
+    }
+
+    input, button {
+      width: 100%;
+      padding: 14px;
+      margin-top: 10px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+    }
+
+    input {
+      background: #111827;
+      color: white;
+      outline: none;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    button {
+      background: #00c853;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #00e676;
+    }
+
+    .danger {
+      background: #d50000;
+    }
+
+    .danger:hover {
+      background: #ff1744;
+    }
+
+    #chatPage {
+      display: none;
+    }
+
+    #messages {
+      height: 360px;
+      overflow-y: auto;
+      background: #020617;
+      border-radius: 14px;
+      padding: 12px;
+      margin: 15px 0;
+      border: 1px solid rgba(0,255,136,0.2);
+    }
+
+    .msg {
+      background: #111827;
+      padding: 10px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      word-wrap: break-word;
+      border-left: 4px solid #00ff88;
+    }
+
+    .system {
+      text-align: center;
+      color: #94a3b8;
+      font-size: 12px;
+      margin: 8px 0;
+    }
+
+    .time {
+      display: block;
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 5px;
+    }
+
+    .info {
+      text-align: center;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+
+    .status {
+      text-align: center;
+      font-size: 12px;
+      color: #00ff88;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="box" id="loginPage">
+    <img src="./anonymous.jpg" class="logo" alt="Anonymous Chat">
+
+    <h1>ANONYMOUS CHAT</h1>
+
+    <input type="password" id="accessCode" placeholder="Wpisz kod dostępu" />
+    <input type="text" id="nickInput" placeholder="Wpisz nick" />
+
+    <button onclick="login()">WEJDŹ</button>
+
+    <p class="info">Dostęp tylko po wpisaniu kodu.</p>
+    <div class="status" id="connectionStatus">Łączenie...</div>
+  </div>
+
+  <div class="box" id="chatPage">
+    <img src="./anonymous.jpg" class="logo" alt="Anonymous Chat">
+
+    <h1>ANONYMOUS CHAT</h1>
+    <p class="info" id="onlineInfo">Osoby online: 0</p>
+
+    <div id="messages"></div>
+
+    <input type="text" id="messageInput" placeholder="Napisz wiadomość..." />
+    <button onclick="sendMessage()">WYŚLIJ</button>
+    <button class="danger" onclick="clearChat()">WYCZYŚĆ CHAT WSZYSTKIM</button>
+  </div>
+
+  <script>
+    let socket;
+    let isLoggedIn = false;
+
+    const loginPage = document.getElementById("loginPage");
+    const chatPage = document.getElementById("chatPage");
+    const messagesDiv = document.getElementById("messages");
+    const messageInput = document.getElementById("messageInput");
+    const accessCode = document.getElementById("accessCode");
+    const nickInput = document.getElementById("nickInput");
+    const connectionStatus = document.getElementById("connectionStatus");
+    const onlineInfo = document.getElementById("onlineInfo");
+
+    function connectSocket() {
+      socket = new WebSocket(
+        location.protocol === "https:"
+          ? "wss://" + location.host
+          : "ws://" + location.host
+      );
+
+      socket.onopen = function () {
+        connectionStatus.innerText = "Połączono z serwerem";
+      };
+
+      socket.onerror = function () {
+        connectionStatus.innerText = "Błąd połączenia z serwerem";
+      };
+
+      socket.onclose = function () {
+        connectionStatus.innerText = "Rozłączono z serwerem";
+      };
+
+      socket.onmessage = function(event) {
+        const msg = JSON.parse(event.data);
+
+        if (msg.type === "login_success") {
+          isLoggedIn = true;
+          loginPage.style.display = "none";
+          chatPage.style.display = "block";
+        }
+
+        if (msg.type === "login_error") {
+          alert("Nieprawidłowy kod!");
+        }
+
+        if (msg.type === "online") {
+          onlineInfo.innerText = "Osoby online: " + msg.count;
+        }
+
+        if (msg.type === "system") {
+          addSystemMessage(msg.text);
+        }
+
+        if (msg.type === "message") {
+          addMessage(msg.nick, msg.text, msg.time);
+        }
+
+        if (msg.type === "clear") {
+          messagesDiv.innerHTML = "";
+        }
+      };
+    }
+
+    function login() {
+      const code = accessCode.value.trim();
+      const nick = nickInput.value.trim() || "Anon";
+
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        alert("Brak połączenia z serwerem. Odśwież stronę.");
+        return;
+      }
+
+      socket.send(JSON.stringify({
+        type: "login",
+        code: code,
+        nick: nick
+      }));
+    }
+
+    function sendMessage() {
+      const text = messageInput.value.trim();
+
+      if (!isLoggedIn) {
+        alert("Najpierw się zaloguj.");
+        return;
+      }
+
+      if (text === "") return;
+
+      socket.send(JSON.stringify({
+        type: "message",
+        text: text
+      }));
+
+      messageInput.value = "";
+      messageInput.focus();
+    }
+
+    function clearChat() {
+      if (!isLoggedIn) return;
+
+      socket.send(JSON.stringify({
+        type: "clear"
+      }));
+    }
+
+    function addMessage(nick, text, time) {
+      const div = document.createElement("div");
+      div.className = "msg";
+
+      div.innerHTML = `
+        <strong>${escapeHTML(nick)}:</strong>
+        ${escapeHTML(text)}
+        <span class="time">${escapeHTML(time)}</span>
+      `;
+
+      messagesDiv.appendChild(div);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function addSystemMessage(text) {
+      const div = document.createElement("div");
+      div.className = "system";
+      div.textContent = text;
+      messagesDiv.appendChild(div);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    messageInput.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") {
+        sendMessage();
+      }
+    });
+
+    accessCode.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") {
+        login();
+      }
+    });
+
+    nickInput.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") {
+        login();
+      }
+    });
+
+    function escapeHTML(text) {
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    connectSocket();
+  </script>
+
+</body>
+</html>
